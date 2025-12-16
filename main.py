@@ -29,7 +29,7 @@ app.add_middleware(
 )
 
 # Load words database
-WORDS_DB_PATH = Path(__file__).parent.parent / "speech_project" / "speech_project" / "words_database.py"
+WORDS_DB_PATH = Path(__file__).parent / "words_database.py"
 
 # Simple in-memory storage (replace with database in production)
 sessions_store = {}
