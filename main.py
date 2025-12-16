@@ -5,7 +5,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict
 import speech_recognition as sr
 import tempfile
 import os
@@ -88,6 +88,7 @@ class UserResponse(BaseModel):
     longest_streak: int = 0
     total_exercises_completed: int = 0
     achievements: List[str] = []
+    adaptive_time_limit: Optional[int] = None
 
 # Arabic text normalization and matching functions
 def normalize_arabic_text(text: str) -> str:
@@ -201,6 +202,95 @@ def calculate_similarity(text1: str, text2: str) -> float:
     final_similarity = (sequence_similarity * 0.6) + (char_similarity * 0.3) + (jaccard_similarity * 0.1)
     
     return final_similarity
+
+def calculate_adaptive_time_limit(
+    current_time_limit: Optional[int],
+    initial_time_limit: int,
+    recent_sessions: List[Dict]
+) -> int:
+    """
+    Calculate adaptive time limit based on recent performance.
+    
+    Args:
+        current_time_limit: Current stored time limit (ms)
+        initial_time_limit: Initial time limit based on severity (ms)
+        recent_sessions: List of recent session records
+    
+    Returns:
+        New adaptive time limit in milliseconds
+    """
+    if not recent_sessions or len(recent_sessions) == 0:
+        return initial_time_limit
+    
+    if current_time_limit is None:
+        current_time_limit = initial_time_limit
+    
+    # Analyze last 3 sessions
+    last_sessions = recent_sessions[-3:] if len(recent_sessions) >= 3 else recent_sessions
+    
+    # Calculate metrics
+    total_words = 0
+    correct_words = 0
+    total_response_time = 0
+    words_exceeding_time = 0
+    
+    for session in last_sessions:
+        records = session.get("records", [])
+        if isinstance(records, str):
+            import json
+            records = json.loads(records)
+        
+        for record in records:
+            total_words += 1
+            if record.get("result") == "correct":
+                correct_words += 1
+            response_time = record.get("response_time_ms", 0)
+            if response_time:
+                total_response_time += response_time
+                # Count words that exceeded time limit
+                if (record.get("cue_level") == 3 and 
+                    record.get("result") == "incorrect" and 
+                    response_time >= current_time_limit * 0.9):
+                    words_exceeding_time += 1
+    
+    if total_words == 0:
+        return current_time_limit
+    
+    avg_accuracy = (correct_words / total_words) * 100
+    avg_response_time = total_response_time / total_words
+    time_exceeded_rate = words_exceeding_time / total_words
+    
+    # Calculate adjustment
+    adjustment = 0
+    
+    # Improving: high accuracy and fast responses -> decrease time
+    if avg_accuracy > 70 and avg_response_time < current_time_limit * 0.6:
+        adjustment = -5000  # Decrease by 5 seconds
+    # Good performance: decrease slightly
+    elif avg_accuracy > 60 and avg_response_time < current_time_limit * 0.7:
+        adjustment = -3000  # Decrease by 3 seconds
+    # Struggling: many words exceeding time -> increase
+    elif time_exceeded_rate > 0.3:
+        adjustment = 10000  # Increase by 10 seconds
+    # Low accuracy or slow responses -> increase
+    elif avg_accuracy < 50 or avg_response_time > current_time_limit * 0.8:
+        adjustment = 5000  # Increase by 5 seconds
+    # Moderate performance -> slight increase
+    elif avg_accuracy < 60 and avg_response_time > current_time_limit * 0.7:
+        adjustment = 3000  # Increase by 3 seconds
+    
+    # Calculate new limit
+    new_limit = current_time_limit + adjustment
+    
+    # Clamp between 20s and 60s
+    min_limit = 20000
+    max_limit = 60000
+    new_limit = max(min_limit, min(max_limit, new_limit))
+    
+    # Round to nearest 5 seconds
+    new_limit = round(new_limit / 5000) * 5000
+    
+    return int(new_limit)
 
 def is_match(target_word: str, transcription: str, threshold: float = 0.70) -> tuple:
     """
@@ -319,16 +409,24 @@ def load_words_database():
                 
                 for idx, word_data in enumerate(words_db, start=1):
                     # Update image path to use public folder
-                    image_name = word_data.get("image_path", "").split("/")[-1].lower()
-                    if image_name in image_mapping:
-                        word_data["image_path"] = f"/images/{image_mapping[image_name]}"
+                    image_path = word_data.get("image_path", "")
+                    if image_path:
+                        image_name = image_path.split("/")[-1].split("\\")[-1]  # Handle both / and \
+                        # Check if it's already in the mapping, otherwise use the filename as-is
+                        if image_name.lower() in image_mapping:
+                            word_data["image_path"] = f"/images/{image_mapping[image_name.lower()]}"
+                        else:
+                            # Use the filename directly (handles Arabic filenames)
+                            word_data["image_path"] = f"/images/{image_name}"
                     
                     # Update audio paths to use public folder
-                    if "word_audio" in word_data:
-                        audio_name = word_data["word_audio"].split("/")[-1]
+                    if "word_audio" in word_data and word_data["word_audio"]:
+                        audio_path = word_data["word_audio"]
+                        audio_name = audio_path.split("/")[-1].split("\\")[-1]  # Handle both / and \
                         word_data["word_audio"] = f"/audio/{audio_name}"
-                    if "cue_audio" in word_data:
-                        cue_name = word_data["cue_audio"].split("/")[-1]
+                    if "cue_audio" in word_data and word_data["cue_audio"]:
+                        cue_path = word_data["cue_audio"]
+                        cue_name = cue_path.split("/")[-1].split("\\")[-1]  # Handle both / and \
                         word_data["cue_audio"] = f"/audio/{cue_name}"
                     
                     words.append({
@@ -372,6 +470,257 @@ async def get_word(word_id: int):
     if not word:
         raise HTTPException(status_code=404, detail="Word not found")
     return word
+
+# Word management endpoints
+def save_words_database(words_list):
+    """Save words back to words_database.py file"""
+    try:
+        # Convert to the format expected by words_database.py
+        words_data = []
+        for word in words_list:
+            # Handle audio paths - keep /audio/ format for frontend
+            word_audio = word.get("word_audio", "")
+            cue_audio = word.get("cue_audio", "")
+            # Only replace if it starts with /audio/
+            if word_audio.startswith("/audio/"):
+                word_audio = word_audio.replace("/audio/", "SoundRecordings/")
+            if cue_audio.startswith("/audio/"):
+                cue_audio = cue_audio.replace("/audio/", "SoundRecordings/")
+            
+            # Handle image path
+            image_path = word.get("image_path", "")
+            if image_path.startswith("/images/"):
+                image_path = image_path.replace("/images/", "images/")
+            
+            words_data.append({
+                "word": word.get("word", ""),
+                "word_audio": word_audio,
+                "cue_audio": cue_audio,
+                "word_hint_audio": word.get("word_hint_audio", ""),
+                "semantic_cue": word.get("semantic_cue", ""),
+                "frequency_level": word.get("frequency_level", 1),
+                "image_path": image_path
+            })
+        
+        # Write to file with proper escaping
+        file_content = "words_database = [\n"
+        for word in words_data:
+            # Escape quotes and special characters
+            def escape_string(s):
+                if not s:
+                    return '""'
+                return json.dumps(s, ensure_ascii=False)
+            
+            file_content += "    {\n"
+            file_content += f'        "word": {escape_string(word["word"])},\n'
+            file_content += f'        "word_audio": {escape_string(word["word_audio"])},\n'
+            file_content += f'        "cue_audio": {escape_string(word["cue_audio"])},\n'
+            file_content += f'        "word_hint_audio": {escape_string(word["word_hint_audio"])},\n'
+            file_content += f'        "semantic_cue": {escape_string(word["semantic_cue"])},\n'
+            file_content += f'        "frequency_level": {word["frequency_level"]},\n'
+            file_content += f'        "image_path": {escape_string(word["image_path"])}\n'
+            file_content += "    },\n"
+        file_content = file_content.rstrip(",\n") + "\n]\n"
+        file_content += "print(words_database)\n"
+        
+        with open(WORDS_DB_PATH, 'w', encoding='utf-8') as f:
+            f.write(file_content)
+        
+        # Reload the database
+        global WORDS_DATABASE
+        WORDS_DATABASE = load_words_database()
+        return True
+    except Exception as e:
+        print(f"Error saving words database: {e}")
+        return False
+
+@app.post("/api/words")
+async def create_word(
+    word: str = Form(...),
+    word_hint_audio: str = Form(...),
+    semantic_cue: str = Form(...),
+    frequency_level: int = Form(...),
+    image: Optional[UploadFile] = File(None),
+    word_audio: Optional[UploadFile] = File(None),
+    cue_audio: Optional[UploadFile] = File(None)
+):
+    """Create a new word"""
+    try:
+        # Get next ID
+        next_id = max([w["id"] for w in WORDS_DATABASE], default=0) + 1
+        
+        # Handle file uploads
+        image_path = ""
+        word_audio_path = ""
+        cue_audio_path = ""
+        
+        # Get frontend public directory path
+        frontend_public = Path(__file__).parent.parent / "frontend" / "public"
+        images_dir = frontend_public / "images"
+        audio_dir = frontend_public / "audio"
+        
+        # Ensure directories exist
+        images_dir.mkdir(parents=True, exist_ok=True)
+        audio_dir.mkdir(parents=True, exist_ok=True)
+        
+        if image:
+            # Save image
+            image_ext = os.path.splitext(image.filename)[1] or ".png"
+            image_filename = f"{word.lower().replace(' ', '_')}{image_ext}"
+            image_path_full = images_dir / image_filename
+            with open(image_path_full, "wb") as f:
+                content = await image.read()
+                f.write(content)
+            image_path = f"/images/{image_filename}"
+        
+        if word_audio:
+            # Save word audio
+            audio_ext = os.path.splitext(word_audio.filename)[1] or ".m4a"
+            audio_filename = f"{word.replace(' ', '_')}{audio_ext}"
+            audio_path_full = audio_dir / audio_filename
+            with open(audio_path_full, "wb") as f:
+                content = await word_audio.read()
+                f.write(content)
+            word_audio_path = f"/audio/{audio_filename}"
+        
+        if cue_audio:
+            # Save cue audio
+            cue_ext = os.path.splitext(cue_audio.filename)[1] or ".m4a"
+            cue_filename = f"{word.replace(' ', '_')} cue{cue_ext}"
+            cue_path_full = audio_dir / cue_filename
+            with open(cue_path_full, "wb") as f:
+                content = await cue_audio.read()
+                f.write(content)
+            cue_audio_path = f"/audio/{cue_filename}"
+        
+        # Create new word
+        new_word = {
+            "id": next_id,
+            "word": word,
+            "word_audio": word_audio_path,
+            "cue_audio": cue_audio_path,
+            "word_hint_audio": word_hint_audio,
+            "semantic_cue": semantic_cue,
+            "frequency_level": frequency_level,
+            "image_path": image_path
+        }
+        
+        # Add to database
+        WORDS_DATABASE.append(new_word)
+        
+        # Save to file
+        if save_words_database(WORDS_DATABASE):
+            return {"success": True, "word": new_word}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to save word to database")
+            
+    except Exception as e:
+        import traceback
+        raise HTTPException(status_code=500, detail=f"Error creating word: {str(e)}\n{traceback.format_exc()}")
+
+@app.put("/api/words/{word_id}")
+async def update_word(
+    word_id: int,
+    word: Optional[str] = Form(None),
+    word_hint_audio: Optional[str] = Form(None),
+    semantic_cue: Optional[str] = Form(None),
+    frequency_level: Optional[int] = Form(None),
+    image: Optional[UploadFile] = File(None),
+    word_audio: Optional[UploadFile] = File(None),
+    cue_audio: Optional[UploadFile] = File(None)
+):
+    """Update an existing word"""
+    try:
+        # Find word
+        word_index = next((i for i, w in enumerate(WORDS_DATABASE) if w["id"] == word_id), None)
+        if word_index is None:
+            raise HTTPException(status_code=404, detail="Word not found")
+        
+        existing_word = WORDS_DATABASE[word_index]
+        
+        # Get frontend public directory path
+        frontend_public = Path(__file__).parent.parent / "frontend" / "public"
+        images_dir = frontend_public / "images"
+        audio_dir = frontend_public / "audio"
+        
+        # Update fields
+        if word is not None:
+            existing_word["word"] = word
+        if word_hint_audio is not None:
+            existing_word["word_hint_audio"] = word_hint_audio
+        if semantic_cue is not None:
+            existing_word["semantic_cue"] = semantic_cue
+        if frequency_level is not None:
+            existing_word["frequency_level"] = frequency_level
+        
+        # Handle file uploads
+        if image:
+            image_ext = os.path.splitext(image.filename)[1] or ".png"
+            image_filename = f"{existing_word['word'].lower().replace(' ', '_')}{image_ext}"
+            image_path_full = images_dir / image_filename
+            with open(image_path_full, "wb") as f:
+                content = await image.read()
+                f.write(content)
+            existing_word["image_path"] = f"/images/{image_filename}"
+        
+        if word_audio:
+            audio_ext = os.path.splitext(word_audio.filename)[1] or ".m4a"
+            audio_filename = f"{existing_word['word'].replace(' ', '_')}{audio_ext}"
+            audio_path_full = audio_dir / audio_filename
+            with open(audio_path_full, "wb") as f:
+                content = await word_audio.read()
+                f.write(content)
+            existing_word["word_audio"] = f"/audio/{audio_filename}"
+        
+        if cue_audio:
+            cue_ext = os.path.splitext(cue_audio.filename)[1] or ".m4a"
+            cue_filename = f"{existing_word['word'].replace(' ', '_')} cue{cue_ext}"
+            cue_path_full = audio_dir / cue_filename
+            with open(cue_path_full, "wb") as f:
+                content = await cue_audio.read()
+                f.write(content)
+            existing_word["cue_audio"] = f"/audio/{cue_filename}"
+        
+        # Update in database
+        WORDS_DATABASE[word_index] = existing_word
+        
+        # Save to file
+        if save_words_database(WORDS_DATABASE):
+            return {"success": True, "word": existing_word}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to save word to database")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        raise HTTPException(status_code=500, detail=f"Error updating word: {str(e)}\n{traceback.format_exc()}")
+
+@app.delete("/api/words/{word_id}")
+async def delete_word(word_id: int):
+    """Delete a word"""
+    try:
+        # Find word
+        word_index = next((i for i, w in enumerate(WORDS_DATABASE) if w["id"] == word_id), None)
+        if word_index is None:
+            raise HTTPException(status_code=404, detail="Word not found")
+        
+        # Remove from database
+        deleted_word = WORDS_DATABASE.pop(word_index)
+        
+        # Save to file
+        if save_words_database(WORDS_DATABASE):
+            return {"success": True, "message": "Word deleted successfully"}
+        else:
+            # Restore word if save failed
+            WORDS_DATABASE.insert(word_index, deleted_word)
+            raise HTTPException(status_code=500, detail="Failed to save word to database")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        raise HTTPException(status_code=500, detail=f"Error deleting word: {str(e)}\n{traceback.format_exc()}")
 
 # Authentication endpoints
 @app.post("/api/auth/register", response_model=UserResponse)
@@ -443,7 +792,7 @@ async def get_user(user_id: int):
 @app.put("/api/auth/user/{user_id}/progress")
 async def update_user_progress_endpoint(user_id: int, progress_data: dict):
     """Update user progress"""
-    from database import update_user_progress
+    from database import update_user_progress, get_user_by_id, get_user_sessions
     try:
         # Ensure achievements is a list, not a string or None
         achievements = progress_data.get("achievements")
@@ -458,6 +807,29 @@ async def update_user_progress_endpoint(user_id: int, progress_data: dict):
             else:
                 achievements = []
         
+        # Calculate adaptive time limit if session was just completed
+        adaptive_time_limit = progress_data.get("adaptive_time_limit")
+        if adaptive_time_limit is None:
+            # Calculate new adaptive time limit based on recent performance
+            user = get_user_by_id(user_id)
+            if user:
+                # Get initial time limit based on severity
+                severity_map = {
+                    "mild": 30000,
+                    "moderate": 45000,
+                    "severe": 60000,
+                }
+                initial_limit = severity_map.get(user.get("level_of_severity", "moderate"), 45000)
+                current_limit = user.get("adaptive_time_limit") or initial_limit
+                
+                # Get recent sessions
+                recent_sessions = get_user_sessions(user_id, limit=5)
+                
+                # Calculate new adaptive limit
+                adaptive_time_limit = calculate_adaptive_time_limit(
+                    current_limit, initial_limit, recent_sessions
+                )
+        
         update_user_progress(
             user_id=user_id,
             current_progress_word_id=progress_data.get("current_progress_word_id"),
@@ -470,9 +842,10 @@ async def update_user_progress_endpoint(user_id: int, progress_data: dict):
             current_streak=progress_data.get("current_streak"),
             longest_streak=progress_data.get("longest_streak"),
             total_exercises_completed=progress_data.get("total_exercises_completed"),
-            achievements=achievements
+            achievements=achievements,
+            adaptive_time_limit=adaptive_time_limit
         )
-        return {"success": True}
+        return {"success": True, "adaptive_time_limit": adaptive_time_limit}
     except Exception as e:
         import traceback
         error_detail = f"Error updating progress: {str(e)}\n{traceback.format_exc()}"

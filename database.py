@@ -38,6 +38,8 @@ def _ensure_user_columns(cursor):
         cursor.execute("ALTER TABLE users ADD COLUMN total_exercises_completed INTEGER DEFAULT 0")
     if "achievements" not in existing_cols:
         cursor.execute("ALTER TABLE users ADD COLUMN achievements TEXT DEFAULT '[]'")
+    if "adaptive_time_limit" not in existing_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN adaptive_time_limit INTEGER DEFAULT NULL")
 
 def init_database():
     """Initialize database with user and sessions tables and run simple migrations."""
@@ -64,6 +66,7 @@ def init_database():
             longest_streak INTEGER DEFAULT 0,
             total_exercises_completed INTEGER DEFAULT 0,
             achievements TEXT DEFAULT '[]', -- JSON array of achievement IDs
+            adaptive_time_limit INTEGER DEFAULT NULL, -- Adaptive time limit in milliseconds
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )
@@ -136,6 +139,14 @@ def create_user(
         password_hash = hash_password(password)
         now = datetime.now().isoformat()
         
+        # Calculate initial adaptive time limit based on severity
+        severity_map = {
+            "mild": 30000,      # 30 seconds
+            "moderate": 45000,  # 45 seconds
+            "severe": 60000,    # 60 seconds (maximum)
+        }
+        initial_time_limit = severity_map.get(level_of_severity, 45000) if level_of_severity else 45000
+        
         cursor.execute("""
             INSERT INTO users (
                 username, password_hash, level_of_severity,
@@ -143,12 +154,12 @@ def create_user(
                 accuracy_percent, avg_response_time_seconds,
                 last_session_date, avatar_url, total_points,
                 current_level, current_streak, longest_streak,
-                total_exercises_completed, achievements,
+                total_exercises_completed, achievements, adaptive_time_limit,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             username, password_hash, level_of_severity,
-            0, 0, 0.0, 0.0, None, avatar_url, 0, 1, 0, 0, 0, '[]', now, now
+            0, 0, 0.0, 0.0, None, avatar_url, 0, 1, 0, 0, 0, '[]', initial_time_limit, now, now
         ))
         
         user_id = cursor.lastrowid
@@ -234,7 +245,8 @@ def update_user_progress(
     current_streak: Optional[int] = None,
     longest_streak: Optional[int] = None,
     total_exercises_completed: Optional[int] = None,
-    achievements: Optional[List[str]] = None
+    achievements: Optional[List[str]] = None,
+    adaptive_time_limit: Optional[int] = None
 ):
     """Update user progress"""
     import json
@@ -287,6 +299,10 @@ def update_user_progress(
     if achievements is not None:
         updates.append("achievements = ?")
         values.append(json.dumps(achievements))
+    
+    if adaptive_time_limit is not None:
+        updates.append("adaptive_time_limit = ?")
+        values.append(adaptive_time_limit)
     
     if updates:
         updates.append("updated_at = ?")

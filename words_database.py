@@ -88,6 +88,15 @@ words_database = [
         "semantic_cue": "حيوان كبير… له خرطوم طويل",
         "frequency_level": 2,
         "image_path": "images/feel.png"
+    },
+    {
+        "word": "قطة",
+        "word_audio": "SoundRecordings/قطة.webm",
+        "cue_audio": "SoundRecordings/قطة cue.webm",
+        "word_hint_audio": "ق",
+        "semantic_cue": "ق",
+        "frequency_level": 1,
+        "image_path": "images/قطة.jpg"
     }
 ]
 print(words_database)
