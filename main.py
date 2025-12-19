@@ -3,13 +3,15 @@ FastAPI backend for Gamified Anomia Rehabilitation App
 """
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 import speech_recognition as sr
 import tempfile
 import os
 import json
+import uuid
 from datetime import datetime
 from pathlib import Path
 from database import (
@@ -30,6 +32,19 @@ app.add_middleware(
 
 # Load words database
 WORDS_DB_PATH = Path(__file__).parent / "words_database.py"
+
+# File storage directories (on backend server)
+UPLOADS_DIR = Path(__file__).parent / "uploads"
+IMAGES_DIR = UPLOADS_DIR / "images"
+AUDIO_DIR = UPLOADS_DIR / "audio"
+
+# Ensure upload directories exist
+IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+
+# Mount static files for serving uploaded files
+# CORS headers are already handled by the CORS middleware above
+app.mount("/api/files", StaticFiles(directory=str(UPLOADS_DIR)), name="files")
 
 # Simple in-memory storage (replace with database in production)
 sessions_store = {}
@@ -408,26 +423,36 @@ def load_words_database():
                 }
                 
                 for idx, word_data in enumerate(words_db, start=1):
-                    # Update image path to use public folder
+                    # Update image path - convert old paths to backend API paths
                     image_path = word_data.get("image_path", "")
                     if image_path:
-                        image_name = image_path.split("/")[-1].split("\\")[-1]  # Handle both / and \
-                        # Check if it's already in the mapping, otherwise use the filename as-is
-                        if image_name.lower() in image_mapping:
-                            word_data["image_path"] = f"/images/{image_mapping[image_name.lower()]}"
+                        # If already using backend API path, keep it
+                        if image_path.startswith("/api/files/"):
+                            word_data["image_path"] = image_path
                         else:
-                            # Use the filename directly (handles Arabic filenames)
-                            word_data["image_path"] = f"/images/{image_name}"
+                            # Convert old paths to backend API paths
+                            image_name = image_path.split("/")[-1].split("\\")[-1]  # Handle both / and \
+                            word_data["image_path"] = f"/api/files/images/{image_name}"
                     
-                    # Update audio paths to use public folder
+                    # Update audio paths - convert old paths to backend API paths
                     if "word_audio" in word_data and word_data["word_audio"]:
                         audio_path = word_data["word_audio"]
-                        audio_name = audio_path.split("/")[-1].split("\\")[-1]  # Handle both / and \
-                        word_data["word_audio"] = f"/audio/{audio_name}"
+                        # If already using backend API path, keep it
+                        if audio_path.startswith("/api/files/"):
+                            word_data["word_audio"] = audio_path
+                        else:
+                            # Convert old paths to backend API paths
+                            audio_name = audio_path.split("/")[-1].split("\\")[-1]  # Handle both / and \
+                            word_data["word_audio"] = f"/api/files/audio/{audio_name}"
                     if "cue_audio" in word_data and word_data["cue_audio"]:
                         cue_path = word_data["cue_audio"]
-                        cue_name = cue_path.split("/")[-1].split("\\")[-1]  # Handle both / and \
-                        word_data["cue_audio"] = f"/audio/{cue_name}"
+                        # If already using backend API path, keep it
+                        if cue_path.startswith("/api/files/"):
+                            word_data["cue_audio"] = cue_path
+                        else:
+                            # Convert old paths to backend API paths
+                            cue_name = cue_path.split("/")[-1].split("\\")[-1]  # Handle both / and \
+                            word_data["cue_audio"] = f"/api/files/audio/{cue_name}"
                     
                     words.append({
                         "id": idx,
@@ -478,19 +503,22 @@ def save_words_database(words_list):
         # Convert to the format expected by words_database.py
         words_data = []
         for word in words_list:
-            # Handle audio paths - keep /audio/ format for frontend
+            # Keep backend API paths as-is (they're already correct)
             word_audio = word.get("word_audio", "")
             cue_audio = word.get("cue_audio", "")
-            # Only replace if it starts with /audio/
-            if word_audio.startswith("/audio/"):
-                word_audio = word_audio.replace("/audio/", "SoundRecordings/")
-            if cue_audio.startswith("/audio/"):
-                cue_audio = cue_audio.replace("/audio/", "SoundRecordings/")
-            
-            # Handle image path
             image_path = word.get("image_path", "")
-            if image_path.startswith("/images/"):
-                image_path = image_path.replace("/images/", "images/")
+            
+            # Only convert if they're old format paths (for backward compatibility)
+            # Backend API paths should be kept as-is
+            if word_audio and not word_audio.startswith("/api/files/"):
+                if word_audio.startswith("/audio/"):
+                    word_audio = word_audio.replace("/audio/", "SoundRecordings/")
+            if cue_audio and not cue_audio.startswith("/api/files/"):
+                if cue_audio.startswith("/audio/"):
+                    cue_audio = cue_audio.replace("/audio/", "SoundRecordings/")
+            if image_path and not image_path.startswith("/api/files/"):
+                if image_path.startswith("/images/"):
+                    image_path = image_path.replace("/images/", "images/")
             
             words_data.append({
                 "word": word.get("word", ""),
@@ -554,44 +582,41 @@ async def create_word(
         word_audio_path = ""
         cue_audio_path = ""
         
-        # Get frontend public directory path
-        frontend_public = Path(__file__).parent.parent / "frontend" / "public"
-        images_dir = frontend_public / "images"
-        audio_dir = frontend_public / "audio"
-        
-        # Ensure directories exist
-        images_dir.mkdir(parents=True, exist_ok=True)
-        audio_dir.mkdir(parents=True, exist_ok=True)
-        
         if image:
-            # Save image
+            # Save image to backend uploads directory
             image_ext = os.path.splitext(image.filename)[1] or ".png"
-            image_filename = f"{word.lower().replace(' ', '_')}{image_ext}"
-            image_path_full = images_dir / image_filename
+            # Use UUID for filename to avoid issues with Arabic characters
+            image_filename = f"{uuid.uuid4()}{image_ext}"
+            image_path_full = IMAGES_DIR / image_filename
             with open(image_path_full, "wb") as f:
                 content = await image.read()
                 f.write(content)
-            image_path = f"/images/{image_filename}"
+            # Return URL pointing to backend API
+            image_path = f"/api/files/images/{image_filename}"
         
         if word_audio:
-            # Save word audio
+            # Save word audio to backend uploads directory
             audio_ext = os.path.splitext(word_audio.filename)[1] or ".m4a"
-            audio_filename = f"{word.replace(' ', '_')}{audio_ext}"
-            audio_path_full = audio_dir / audio_filename
+            # Use UUID for filename to avoid issues with Arabic characters
+            audio_filename = f"{uuid.uuid4()}{audio_ext}"
+            audio_path_full = AUDIO_DIR / audio_filename
             with open(audio_path_full, "wb") as f:
                 content = await word_audio.read()
                 f.write(content)
-            word_audio_path = f"/audio/{audio_filename}"
+            # Return URL pointing to backend API
+            word_audio_path = f"/api/files/audio/{audio_filename}"
         
         if cue_audio:
-            # Save cue audio
+            # Save cue audio to backend uploads directory
             cue_ext = os.path.splitext(cue_audio.filename)[1] or ".m4a"
-            cue_filename = f"{word.replace(' ', '_')} cue{cue_ext}"
-            cue_path_full = audio_dir / cue_filename
+            # Use UUID for filename to avoid issues with Arabic characters
+            cue_filename = f"{uuid.uuid4()}_cue{cue_ext}"
+            cue_path_full = AUDIO_DIR / cue_filename
             with open(cue_path_full, "wb") as f:
                 content = await cue_audio.read()
                 f.write(content)
-            cue_audio_path = f"/audio/{cue_filename}"
+            # Return URL pointing to backend API
+            cue_audio_path = f"/api/files/audio/{cue_filename}"
         
         # Create new word
         new_word = {
@@ -638,11 +663,6 @@ async def update_word(
         
         existing_word = WORDS_DATABASE[word_index]
         
-        # Get frontend public directory path
-        frontend_public = Path(__file__).parent.parent / "frontend" / "public"
-        images_dir = frontend_public / "images"
-        audio_dir = frontend_public / "audio"
-        
         # Update fields
         if word is not None:
             existing_word["word"] = word
@@ -653,33 +673,72 @@ async def update_word(
         if frequency_level is not None:
             existing_word["frequency_level"] = frequency_level
         
-        # Handle file uploads
+        # Handle file uploads - delete old files if new ones are uploaded
         if image:
+            # Delete old image if it exists
+            old_image_path = existing_word.get("image_path", "")
+            if old_image_path and old_image_path.startswith("/api/files/images/"):
+                old_filename = old_image_path.split("/")[-1]
+                old_file = IMAGES_DIR / old_filename
+                if old_file.exists():
+                    try:
+                        old_file.unlink()
+                    except:
+                        pass
+            
+            # Save new image
             image_ext = os.path.splitext(image.filename)[1] or ".png"
-            image_filename = f"{existing_word['word'].lower().replace(' ', '_')}{image_ext}"
-            image_path_full = images_dir / image_filename
+            # Use UUID for filename to avoid issues with Arabic characters
+            image_filename = f"{uuid.uuid4()}{image_ext}"
+            image_path_full = IMAGES_DIR / image_filename
             with open(image_path_full, "wb") as f:
                 content = await image.read()
                 f.write(content)
-            existing_word["image_path"] = f"/images/{image_filename}"
+            existing_word["image_path"] = f"/api/files/images/{image_filename}"
         
         if word_audio:
+            # Delete old audio if it exists
+            old_audio_path = existing_word.get("word_audio", "")
+            if old_audio_path and old_audio_path.startswith("/api/files/audio/"):
+                old_filename = old_audio_path.split("/")[-1]
+                old_file = AUDIO_DIR / old_filename
+                if old_file.exists():
+                    try:
+                        old_file.unlink()
+                    except:
+                        pass
+            
+            # Save new word audio
             audio_ext = os.path.splitext(word_audio.filename)[1] or ".m4a"
-            audio_filename = f"{existing_word['word'].replace(' ', '_')}{audio_ext}"
-            audio_path_full = audio_dir / audio_filename
+            # Use UUID for filename to avoid issues with Arabic characters
+            audio_filename = f"{uuid.uuid4()}{audio_ext}"
+            audio_path_full = AUDIO_DIR / audio_filename
             with open(audio_path_full, "wb") as f:
                 content = await word_audio.read()
                 f.write(content)
-            existing_word["word_audio"] = f"/audio/{audio_filename}"
+            existing_word["word_audio"] = f"/api/files/audio/{audio_filename}"
         
         if cue_audio:
+            # Delete old cue audio if it exists
+            old_cue_path = existing_word.get("cue_audio", "")
+            if old_cue_path and old_cue_path.startswith("/api/files/audio/"):
+                old_filename = old_cue_path.split("/")[-1]
+                old_file = AUDIO_DIR / old_filename
+                if old_file.exists():
+                    try:
+                        old_file.unlink()
+                    except:
+                        pass
+            
+            # Save new cue audio
             cue_ext = os.path.splitext(cue_audio.filename)[1] or ".m4a"
-            cue_filename = f"{existing_word['word'].replace(' ', '_')} cue{cue_ext}"
-            cue_path_full = audio_dir / cue_filename
+            # Use UUID for filename to avoid issues with Arabic characters
+            cue_filename = f"{uuid.uuid4()}_cue{cue_ext}"
+            cue_path_full = AUDIO_DIR / cue_filename
             with open(cue_path_full, "wb") as f:
                 content = await cue_audio.read()
                 f.write(content)
-            existing_word["cue_audio"] = f"/audio/{cue_filename}"
+            existing_word["cue_audio"] = f"/api/files/audio/{cue_filename}"
         
         # Update in database
         WORDS_DATABASE[word_index] = existing_word
@@ -698,7 +757,7 @@ async def update_word(
 
 @app.delete("/api/words/{word_id}")
 async def delete_word(word_id: int):
-    """Delete a word"""
+    """Delete a word and its associated files"""
     try:
         # Find word
         word_index = next((i for i, w in enumerate(WORDS_DATABASE) if w["id"] == word_id), None)
@@ -707,6 +766,40 @@ async def delete_word(word_id: int):
         
         # Remove from database
         deleted_word = WORDS_DATABASE.pop(word_index)
+        
+        # Delete associated files
+        # Delete image
+        image_path = deleted_word.get("image_path", "")
+        if image_path and image_path.startswith("/api/files/images/"):
+            image_filename = image_path.split("/")[-1]
+            image_file = IMAGES_DIR / image_filename
+            if image_file.exists():
+                try:
+                    image_file.unlink()
+                except Exception as e:
+                    print(f"Error deleting image {image_filename}: {e}")
+        
+        # Delete word audio
+        word_audio_path = deleted_word.get("word_audio", "")
+        if word_audio_path and word_audio_path.startswith("/api/files/audio/"):
+            audio_filename = word_audio_path.split("/")[-1]
+            audio_file = AUDIO_DIR / audio_filename
+            if audio_file.exists():
+                try:
+                    audio_file.unlink()
+                except Exception as e:
+                    print(f"Error deleting audio {audio_filename}: {e}")
+        
+        # Delete cue audio
+        cue_audio_path = deleted_word.get("cue_audio", "")
+        if cue_audio_path and cue_audio_path.startswith("/api/files/audio/"):
+            cue_filename = cue_audio_path.split("/")[-1]
+            cue_file = AUDIO_DIR / cue_filename
+            if cue_file.exists():
+                try:
+                    cue_file.unlink()
+                except Exception as e:
+                    print(f"Error deleting cue audio {cue_filename}: {e}")
         
         # Save to file
         if save_words_database(WORDS_DATABASE):
