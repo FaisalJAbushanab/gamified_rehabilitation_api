@@ -109,10 +109,32 @@ def init_database():
         )
     """)
     
+    # User word history table to track which words each user has practiced
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_word_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            word_id INTEGER NOT NULL,
+            times_attempted INTEGER DEFAULT 1,
+            times_correct INTEGER DEFAULT 0,
+            times_incorrect INTEGER DEFAULT 0,
+            last_attempted TEXT NOT NULL,
+            avg_cue_level REAL DEFAULT 0.0,
+            avg_response_time_ms REAL DEFAULT 0.0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            UNIQUE(user_id, word_id)
+        )
+    """)
+    
     # Create indexes for better performance
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_date ON sessions(date)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_records_session_id ON session_records(session_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_word_history_user_id ON user_word_history(user_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_word_history_word_id ON user_word_history(word_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_word_history_last_attempted ON user_word_history(last_attempted)")
     
     conn.commit()
     conn.close()
@@ -406,6 +428,116 @@ def get_session_by_id(session_id: int) -> Optional[Dict]:
         session["stats"] = json.loads(session.get("stats", "{}"))
         return session
     return None
+
+def add_or_update_word_history(
+    user_id: int,
+    word_id: int,
+    result: str,  # "correct" or "incorrect"
+    cue_level: int,
+    response_time_ms: int
+):
+    """Add or update word history for a user"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    now = datetime.now().isoformat()
+    
+    # Check if record exists
+    cursor.execute("""
+        SELECT * FROM user_word_history 
+        WHERE user_id = ? AND word_id = ?
+    """, (user_id, word_id))
+    
+    existing = cursor.fetchone()
+    
+    if existing:
+        # Update existing record
+        existing_dict = dict(existing)
+        new_attempts = existing_dict['times_attempted'] + 1
+        new_correct = existing_dict['times_correct'] + (1 if result == 'correct' else 0)
+        new_incorrect = existing_dict['times_incorrect'] + (1 if result != 'correct' else 0)
+        
+        # Calculate new averages
+        old_avg_cue = existing_dict['avg_cue_level']
+        old_avg_time = existing_dict['avg_response_time_ms']
+        old_count = existing_dict['times_attempted']
+        
+        new_avg_cue = (old_avg_cue * old_count + cue_level) / new_attempts
+        new_avg_time = (old_avg_time * old_count + response_time_ms) / new_attempts
+        
+        cursor.execute("""
+            UPDATE user_word_history 
+            SET times_attempted = ?,
+                times_correct = ?,
+                times_incorrect = ?,
+                last_attempted = ?,
+                avg_cue_level = ?,
+                avg_response_time_ms = ?,
+                updated_at = ?
+            WHERE user_id = ? AND word_id = ?
+        """, (
+            new_attempts, new_correct, new_incorrect,
+            now, new_avg_cue, new_avg_time, now,
+            user_id, word_id
+        ))
+    else:
+        # Insert new record
+        cursor.execute("""
+            INSERT INTO user_word_history (
+                user_id, word_id, times_attempted, times_correct,
+                times_incorrect, last_attempted, avg_cue_level,
+                avg_response_time_ms, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            user_id, word_id, 1,
+            1 if result == 'correct' else 0,
+            1 if result != 'correct' else 0,
+            now, float(cue_level), float(response_time_ms),
+            now, now
+        ))
+    
+    conn.commit()
+    conn.close()
+
+def get_user_practiced_word_ids(user_id: int) -> List[int]:
+    """Get list of word IDs that user has already practiced"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT word_id FROM user_word_history 
+        WHERE user_id = ?
+        ORDER BY last_attempted DESC
+    """, (user_id,))
+    
+    word_ids = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    
+    return word_ids
+
+def get_user_word_statistics(user_id: int, word_id: int) -> Optional[Dict]:
+    """Get statistics for a specific word for a user"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT * FROM user_word_history 
+        WHERE user_id = ? AND word_id = ?
+    """, (user_id, word_id))
+    
+    row = cursor.fetchone()
+    conn.close()
+    
+    return dict(row) if row else None
+
+def reset_user_word_history(user_id: int):
+    """Reset word history for a user (for testing or restart)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("DELETE FROM user_word_history WHERE user_id = ?", (user_id,))
+    
+    conn.commit()
+    conn.close()
 
 # Initialize database on import
 init_database()
