@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from . import storage
 from .adaptive import TrialStat, initial_limit_ms, next_limit
 from .asr import transcribe
+from .content import is_placeholder_file, is_placeholder_text, same_file_content
 from .config import ADAPTIVE_VERSION, APP_VERSION, GANVA_VERSION, STUDY, config_hash, get_settings
 from .db import utcnow
 from .ganva import ganva_classify
@@ -69,18 +70,37 @@ def trained_stimuli(db: Session) -> list[Stimulus]:
     )
 
 
+def cue_part_status(stim: Stimulus, cue, need: str) -> str:
+    """'ok', 'missing' or 'placeholder' for one required part of a cue."""
+    if cue is None:
+        return "missing"
+    if need == "text":
+        if not cue.text:
+            return "missing"
+        return "placeholder" if is_placeholder_text(cue.text) else "ok"
+    path = getattr(cue, f"{need}_path")
+    if not path:
+        return "missing"
+    if is_placeholder_file(path) or (need == "image" and cue.level == 3 and same_file_content(path, stim.image_path)):
+        return "placeholder"  # demo file, or an L3 cue that just repeats the item picture
+    return "ok"
+
+
 def content_problems(db: Session) -> list[dict]:
     problems = []
     for s in trained_stimuli(db):
         missing = []
         if not s.image_path:
             missing.append("picture")
+        elif is_placeholder_file(s.image_path):
+            missing.append("picture (demo placeholder)")
         cues = {c.level: c for c in s.cues}
         for level, needs in CUE_LEVEL_REQUIREMENTS.items():
-            c = cues.get(level)
             for need in needs:
-                if c is None or not getattr(c, f"{need}_path" if need != "text" else "text"):
-                    missing.append(f"L{level} {CUE_TYPES[level]} {need}")
+                status = cue_part_status(s, cues.get(level), need)
+                if status != "ok":
+                    label = f"L{level} {CUE_TYPES[level]} {need}"
+                    missing.append(label if status == "missing" else f"{label} (demo placeholder)")
         if missing:
             problems.append({"stimulus_id": s.id, "code": s.code, "english": s.english, "target": s.target, "missing": missing})
     return problems
@@ -255,7 +275,8 @@ def start_session(db: Session, participant: Participant, operator: User) -> Ther
         problems = content_problems(db)
         if problems:
             raise conflict(
-                f"{len(problems)} trained items are missing cue materials. Open Content to see what is missing."
+                f"{len(problems)} trained items are missing cue materials or still use demo placeholders. "
+                "Open Content to see what is missing."
             )
     if participant.adaptive_limit_ms is None:
         start = initial_limit_ms(participant.severity, STUDY.adaptive)

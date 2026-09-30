@@ -51,7 +51,13 @@ def client(tmp_path, monkeypatch):
         s.commit()
 
     c = TestClient(create_app())
-    c.demo_content = lambda: demo_content(argparse.Namespace())
+
+    def fill_demo(allow=True):
+        demo_content(argparse.Namespace())
+        if allow:  # dev mode: let sessions run on placeholders
+            config.get_settings().require_complete_content = False
+
+    c.demo_content = fill_demo
     yield c
     db.reset_engine()
     config.get_settings.cache_clear()

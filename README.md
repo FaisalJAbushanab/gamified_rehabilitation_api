@@ -32,8 +32,19 @@ uploaded one by one in the dashboard or in bulk:
 .venv/bin/python -m app.cli import-cues --dir /path/to/cues   # A-N01_L1.txt, A-N01_L1.m4a, A-N01_L2.m4a, A-N01_L3.jpg, A-N01_L5.m4a ...
 ```
 
-For development only, `python -m app.cli demo-content` fills missing cues with tones and placeholder
-text, and `REQUIRE_COMPLETE_CONTENT=false` lets sessions start regardless. Neither is allowed for clinical use.
+Item pictures can be included as `A-N01_picture.jpg`, and an `associates.csv` in the same folder is imported too.
+
+For development only, `python -m app.cli demo-content` fills missing cues with tones, a placeholder picture and
+"[DEMO" texts. The content check recognises these placeholders (and an L3 visual cue that is just a copy of the
+item picture) and treats them as missing, so sessions stay blocked until real content replaces them.
+`REQUIRE_COMPLETE_CONTENT=false` lets development sessions run anyway; never use it for clinical work.
+
+To move content to another server (e.g. the cloud deployment), export the real content and import it there:
+
+```bash
+.venv/bin/python -m app.cli export-content --dir ./content-export     # skips demo placeholders; writes manifest.csv with checksums
+.venv/bin/python -m app.cli import-cues --dir ./content-export        # on the target server, after import-stimuli
+```
 
 `seed/stimuli_s2.csv` is generated from Supplementary Table S2-2 by `scripts/extract_s2_stimuli.py`.
 
@@ -56,7 +67,7 @@ All protocol values (GANVA thresholds, adaptive controller, session rules, point
 ## ASR
 
 `ASR_PROVIDER=google` (Cloud Speech-to-Text v1 REST, API key) or `azure` (short-audio REST, detailed
-format), optional `ASR_FALLBACK`. No phrase hints are sent (D7). `manual` lets the client send the
+format), optional `ASR_FALLBACK`. The language is `ASR_LOCALE`, default `ar-SA` (Saudi Arabic, for the Najdi group). No phrase hints are sent (D7). `manual` lets the client send the
 transcript and confidence for development and automated tests, and is refused when `ENV=prod`.
 Confirm with a pilot recording that the chosen locale/model returns a confidence for single words.
 

@@ -57,6 +57,22 @@ def test_session_blocked_until_content_complete(client):
     assert not chk["complete"] and len(chk["problems"]) == 30
 
 
+def test_demo_placeholders_block_sessions(client):
+    h = login(client, "slp")
+    client.demo_content(allow=False)
+    p = make_participant(client, h)
+    r = client.post("/api/sessions", headers=h, json={"participant_id": p["id"]})
+    assert r.status_code == 409 and "demo placeholders" in r.json()["detail"]
+    chk = client.get("/api/stimuli/content-check", headers=h).json()
+    assert len(chk["problems"]) == 30
+    missing = chk["problems"][0]["missing"]
+    assert any("L1 semantic audio (demo placeholder)" == m for m in missing)
+    assert any("L3 visual image (demo placeholder)" == m for m in missing)  # copy of the item picture
+    item = client.get(f"/api/stimuli/{chk['problems'][0]['stimulus_id']}", headers=h).json()
+    l1 = next(c for c in item["cues"] if c["level"] == 1)
+    assert l1["placeholder_audio"] and l1["placeholder_text"]
+
+
 def test_tsg_participants_have_no_app_sessions(client):
     h = login(client, "slp")
     client.demo_content()

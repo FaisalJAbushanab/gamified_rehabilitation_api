@@ -35,7 +35,7 @@ def test_google_parses_transcript_confidence_and_nbest(monkeypatch):
     assert r.ok and r.provider == "google" and r.transcript == "مهرج" and r.confidence == 0.91
     assert len(r.n_best) == 2
     cfg = seen["body"]["config"]
-    assert cfg["languageCode"] == "ar-AE" and "speechContexts" not in cfg  # D7: no phrase hints
+    assert cfg["languageCode"] == "ar-SA" and "speechContexts" not in cfg  # D7: no phrase hints
 
 
 def test_google_empty_result_is_no_speech(monkeypatch):

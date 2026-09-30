@@ -116,7 +116,7 @@ class Settings(BaseSettings):
 
     asr_provider: Literal["google", "azure", "manual"] = "manual"
     asr_fallback: Literal["google", "azure", "none"] = "none"
-    asr_locale: str = "ar-AE"
+    asr_locale: str = "ar-SA"  # Saudi Arabic (Najdi study group); ar-AE etc. for Gulf
     asr_timeout_s: float = 5.0
     google_api_key: str = ""
     azure_speech_key: str = ""

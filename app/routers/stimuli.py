@@ -11,7 +11,8 @@ from .. import storage
 from ..db import get_db
 from ..models import CUE_TYPES, Associate, CueAsset, Stimulus, User
 from ..security import STAFF, audit, require_roles
-from ..session_engine import content_problems
+from ..content import is_placeholder_file
+from ..session_engine import content_problems, cue_part_status
 
 router = APIRouter(prefix="/api/stimuli", tags=["stimuli"])
 
@@ -19,13 +20,17 @@ IMAGE_TYPES = {".jpg", ".jpeg", ".png", ".webp"}
 AUDIO_TYPES = {".m4a", ".mp3", ".wav", ".webm", ".mp4", ".aac", ".ogg"}
 
 
-def cue_view(c: CueAsset) -> dict:
+def cue_view(c: CueAsset, s: Stimulus) -> dict:
     return {
         "level": c.level,
         "type": c.cue_type,
         "text": c.text,
         "audio_url": storage.media_url(c.audio_path),
         "image_url": storage.media_url(c.image_path),
+        # demo placeholders: the content check treats these as missing
+        "placeholder_text": cue_part_status(s, c, "text") == "placeholder",
+        "placeholder_audio": cue_part_status(s, c, "audio") == "placeholder",
+        "placeholder_image": cue_part_status(s, c, "image") == "placeholder",
     }
 
 
@@ -42,10 +47,11 @@ def view(s: Stimulus, full: bool = False) -> dict:
         "phonemic_cue_label": s.phonemic_cue_label,
         "semantic_cue_en": s.semantic_cue_en,
         "image_url": storage.media_url(s.image_path),
+        "image_placeholder": is_placeholder_file(s.image_path),
         "probe_only": s.probe_only,
         "active": s.active,
         "associate_count": len(s.associates),
-        "cues": [cue_view(c) for c in s.cues],
+        "cues": [cue_view(c, s) for c in s.cues],
     }
     if full:
         d["psycholinguistic"] = s.psycholinguistic
