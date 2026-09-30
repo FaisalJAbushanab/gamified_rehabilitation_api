@@ -1,0 +1,9 @@
+# Runtime data: database, encrypted participant audio, media, dev secrets. Never commit.
+data/
+*.db
+*.db-*
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

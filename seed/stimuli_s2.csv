@@ -1,0 +1,61 @@
+code,list,word_class,number,frequency_source,english,target,grammatical,syllables,phonemes,frequency_pm,rt_ms,name_agreement,visual_complexity,image_agreement,imageability,familiarity,aoa,phonemic_cue_label,semantic_cue_en
+A-N01,A,noun,1,ARALEX,Clown,مهرج,M,3,8,0.36,1487.61,0.93,2.93,4.65,6.08,3.00,3.38,m (م),A funny entertainer wearing colourful makeup
+A-N02,A,noun,2,ARALEX,Curtain,ستارة,F,3,6,1.09,1323.20,0.95,2.55,4.74,6.27,4.32,3.69,s (س),A piece of fabric hung to cover a window
+A-N03,A,noun,3,ARALEX,Glasses,نظارة,F,3,7,1.82,1124.23,0.98,2.23,4.59,6.46,4.30,3.65,n (ن),Eyewear worn to improve vision
+A-N04,A,noun,4,ARALEX,Thread,خيط,M,1,3,2.86,1855.98,0.93,2.48,3.76,5.92,3.46,3.78,kh (خ),A thin strand used for sewing
+A-N05,A,noun,5,ARALEX,Bell,جرس,M,2,5,3.49,1109.98,1.00,1.82,4.41,6.33,3.86,3.60,j (ج),A hollow metal object that rings
+A-N06,A,noun,6,ARALEX,Triangle,مثلث,M,3,8,8.11,1141.89,0.98,1.43,4.91,6.58,3.48,3.33,m (م),A three-sided geometric shape
+A-N07,A,noun,7,ARALEX,Tape,شريط,M,2,5,13.60,1591.27,0.95,2.34,4.22,5.85,3.36,3.38,sh (ش),A long narrow strip or ribbon
+A-N08,A,noun,8,ARALEX,Fishing Rod,صنارة,F,3,7,17.17,1809.77,0.93,2.16,4.52,6.02,2.86,4.73,s (ص),A long stick used to catch fish
+A-N09,A,noun,9,ARALEX,Bride,عروس,F,2,5,19.92,1573.20,0.89,3.18,4.48,6.12,3.84,3.67,ʿ (ع),A woman on her wedding day
+A-N10,A,noun,10,ARALEX,Sword,سيف,M,1,3,29.99,1282.48,0.98,2.14,4.65,6.48,3.10,3.81,s (س),A long bladed weapon
+A-N11,A,noun,11,ARALEX,Saucepan,جدر,M,2,5,70.54,2124.20,0.84,1.98,4.70,6.29,4.38,3.65,j (ج),A deep cooking pot
+A-N12,A,noun,12,ARALEX,Circle,دائرة,F,3,6,93.66,1517.43,0.79,1.39,4.83,6.44,3.40,3.02,d (د),A perfectly round geometric shape
+A-N13,A,noun,13,ArabiCorpus,Camel,جمل,M,2,5,125.00,1042.15,1.00,2.08,4.71,6.52,4.62,2.98,j (ج),A large desert animal with one or two humps
+A-N14,A,noun,14,ArabiCorpus,Palm Tree,نخلة,F,3,6,155.00,980.33,0.98,2.15,4.68,6.48,4.58,3.12,n (ن),A tall tree that produces dates
+A-N15,A,noun,15,ArabiCorpus,House,بيت,M,1,3,175.00,921.40,1.00,1.72,4.55,6.61,4.82,2.76,b (ب),A building where a family lives
+A-V01,A,verb,1,ARALEX,Comb,يمشط,Trans.,3,8,0.10,1231.23,0.88,2.56,4.80,6.35,3.82,3.36,yM (يم),Using a toothed tool to arrange hair
+A-V02,A,verb,2,ARALEX,Yawn,يتثاوب,Intrans.,3,8,0.23,1256.16,0.98,2.72,4.76,6.62,4.26,3.56,yT (يت),Opening the mouth wide when tired
+A-V03,A,verb,3,ARALEX,Shave,يحلق,Trans.,3,8,1.82,1356.58,0.81,3.21,4.69,6.04,4.02,3.83,yH (يح),Removing hair from the face with a razor
+A-V04,A,verb,4,ARALEX,Drink,يشرب,Trans.,2,6,2.70,1037.44,0.91,1.88,4.82,6.42,4.61,2.79,ysh (يش),Taking liquid into the mouth
+A-V05,A,verb,5,ARALEX,Laugh,يضحك,Intrans.,2,6,4.03,1295.16,0.88,2.87,4.78,6.54,3.36,3.00,yD (يض),Making sounds showing happiness
+A-V06,A,verb,6,ARALEX,Cut,يقطع,Trans.,3,8,8.35,1345.02,0.93,2.16,4.84,6.31,3.96,3.69,yQ (يق),Dividing something with a sharp tool
+A-V07,A,verb,7,ARALEX,Read,يقرأ,Trans.,2,5,18.60,1375.84,0.88,2.26,4.87,6.63,3.32,3.29,yQ (يق),Looking at written text and understanding it
+A-V08,A,verb,8,ARALEX,Drive,يسوق,Trans.,2,5,29.08,1143.86,1.00,2.09,4.82,6.69,4.60,3.69,yS (يس),Controlling a vehicle on the road
+A-V09,A,verb,9,ARALEX,Write,يكتب,Trans.,2,6,39.38,1282.63,0.90,2.23,4.93,6.56,4.52,3.52,yK (يك),Making letters or words on paper
+A-V10,A,verb,10,ARALEX,Search,يدور,Trans.,3,7,52.04,2713.81,0.66,2.77,3.96,6.31,4.15,5.15,yD (يد),Looking carefully to find something
+A-V11,A,verb,11,ArabiCorpus,Run,يركض,Intrans.,2,6,95.00,1118.62,0.95,2.44,4.85,6.48,4.52,2.88,yR (ير),Moving quickly on foot
+A-V12,A,verb,12,ArabiCorpus,Jump,يقفز,Intrans.,3,7,102.00,1205.37,0.93,2.61,4.78,6.41,4.38,3.05,yQ (يق),Pushing off the ground into the air
+A-V13,A,verb,13,ArabiCorpus,Climb,يصعد,Trans.,3,7,115.00,1342.88,0.88,2.83,4.72,6.35,4.22,3.41,yS (يص),Going up to a higher place
+A-V14,A,verb,14,ArabiCorpus,Colour,يلوّن,Trans.,3,7,128.00,1268.15,0.91,2.52,4.69,6.38,4.31,3.28,yL (يل),Filling a surface with colour
+A-V15,A,verb,15,ArabiCorpus,Knock,يطرق,Trans.,3,7,140.00,1194.56,0.90,2.38,4.75,6.44,4.44,3.15,yT (يط),Hitting a door with the fist to gain entry
+B-N01,B,noun,1,ARALEX,Swing,مرجيحة,F,3,7,0.83,1946.59,0.89,2.30,4.20,5.73,3.12,3.33,m (م),A seat that hangs and moves back and forth
+B-N02,B,noun,2,ARALEX,Cow,بقرة,F,3,6,1.51,1277.93,0.93,2.52,4.61,6.35,3.46,3.27,b (ب),A large farm animal that produces milk
+B-N03,B,noun,3,ARALEX,Rooster,ديك,M,1,3,2.44,1766.05,0.84,2.64,4.67,6.54,3.46,3.35,d (د),A male chicken that crows
+B-N04,B,noun,4,ARALEX,Oud,عود,M,1,3,3.38,1423.45,0.89,3.16,3.22,5.92,3.64,3.98,ʿ (ع),A traditional Arabic string instrument
+B-N05,B,noun,5,ARALEX,Drawer,درج,M,1,4,3.69,1631.75,0.98,2.25,3.87,6.27,3.62,3.53,d (د),A sliding box in furniture
+B-N06,B,noun,6,ARALEX,Girl,بنت,F,1,4,9.32,1308.59,0.93,3.00,4.30,6.23,4.30,3.04,b (ب),A young female child
+B-N07,B,noun,7,ARALEX,Umbrella,مظلة,F,3,7,15.09,1369.11,0.95,1.68,4.70,6.19,3.72,3.27,m (م),A portable canopy used in rain
+B-N08,B,noun,8,ARALEX,Garden,حديقة,F,3,6,17.66,1506.32,0.95,3.61,4.39,6.12,3.82,3.29,H (ح),An outdoor area with plants and flowers
+B-N09,B,noun,9,ARALEX,Bathtub,بانيو,M,2,5,24.79,1870.73,0.95,1.70,4.65,6.19,3.70,4.16,b (ب),A large basin used for bathing
+B-N10,B,noun,10,ARALEX,Paper,ورقة,F,3,5,42.50,1345.09,0.98,2.00,4.17,6.29,4.48,3.04,w (و),A thin flat material used for writing
+B-N11,B,noun,11,ARALEX,Car,سيارة,F,3,6,84.03,1015.41,1.00,1.59,4.50,6.52,4.68,2.89,s (س),A four-wheeled motor vehicle
+B-N12,B,noun,12,ARALEX,Watch,ساعة,F,2,4,117.60,1072.20,0.89,2.23,4.39,6.42,4.60,3.36,s (س),A timepiece worn on the wrist
+B-N13,B,noun,13,ArabiCorpus,Chair,كرسي,M,3,6,140.00,998.72,1.00,1.85,4.62,6.58,4.71,2.82,k (ك),A seat with a backrest for one person
+B-N14,B,noun,14,ArabiCorpus,Cat,قطة,F,2,5,165.00,955.14,1.00,2.12,4.74,6.65,4.68,2.74,q (ق),A small furry domestic animal that meows
+B-N15,B,noun,15,ArabiCorpus,Table,طاولة,F,3,6,190.00,912.88,1.00,1.68,4.58,6.70,4.85,2.71,T (ط),A flat surface on legs used for meals and work
+B-V01,B,verb,1,ARALEX,Cook,يطبخ,Trans.,2,6,0.21,1274.74,0.95,2.42,4.76,6.35,3.76,3.63,yT (يط),Preparing food using heat
+B-V02,B,verb,2,ARALEX,Blow,ينفخ,Trans.,2,6,0.83,1822.02,0.87,2.96,4.38,6.39,3.60,3.32,yn (ين),Pushing air out through the mouth
+B-V03,B,verb,3,ARALEX,Pray,يصلي,Trans.,3,7,2.05,1019.09,1.00,2.09,4.80,6.65,4.13,2.96,yS (يص),Performing a religious act of worship
+B-V04,B,verb,4,ARALEX,Plant,يزرع,Trans.,2,6,2.81,1455.14,1.00,2.86,4.82,6.37,3.47,3.65,yZ (يز),Putting seeds or plants into the ground
+B-V05,B,verb,5,ARALEX,Eat,ياكل,Trans.,2,5,5.33,1185.23,0.93,2.26,4.73,6.69,3.19,2.94,yA (يا),Putting food in the mouth and swallowing
+B-V06,B,verb,6,ARALEX,Draw,يرسم,Trans.,2,6,8.87,1308.42,0.98,2.00,4.68,6.63,4.33,3.21,yR (ير),Making a picture with a pencil or pen
+B-V07,B,verb,7,ARALEX,Tie,يربط,Trans.,2,6,24.97,1525.93,0.90,2.67,4.42,6.19,3.37,3.33,yR (ير),Fastening something with a knot
+B-V08,B,verb,8,ARALEX,Sing,يغني,Trans.,3,7,32.25,1251.33,1.00,2.60,4.76,6.42,3.89,5.22,ygh (يغ),Producing musical sounds with the voice
+B-V09,B,verb,9,ARALEX,Push,يدز,Trans.,2,5,46.87,1364.09,0.79,2.30,4.49,6.00,3.76,3.40,yD (يد),Moving something away with force
+B-V10,B,verb,10,ARALEX,Carry,يشيل,Trans.,2,5,89.42,1616.98,0.81,2.05,4.62,5.92,4.21,3.63,ysh (يش),Holding something and moving it from place to place
+B-V11,B,verb,11,ArabiCorpus,Sleep,ينام,Intrans.,2,5,98.00,1088.45,0.98,2.28,4.82,6.54,4.58,2.82,yn (ين),Resting the body with eyes closed
+B-V12,B,verb,12,ArabiCorpus,Swim,يسبح,Intrans.,3,7,108.00,1156.33,0.95,2.55,4.76,6.47,4.28,3.18,yS (يس),Moving through water using arms and legs
+B-V13,B,verb,13,ArabiCorpus,Throw,يقذف,Trans.,3,7,122.00,1224.78,0.93,2.48,4.71,6.40,4.35,3.22,yQ (يق),Sending an object through the air with the hand
+B-V14,B,verb,14,ArabiCorpus,Kick,يرفس,Trans.,3,7,135.00,1312.64,0.88,2.65,4.65,6.32,4.18,3.35,yRf (يرف),Striking something forcefully with the foot
+B-V15,B,verb,15,ArabiCorpus,Dig,يحفر,Trans.,3,7,148.00,1287.92,0.90,2.72,4.68,6.38,4.25,3.42,yH (يح),Making a hole in the ground with a tool
